@@ -1,0 +1,196 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Olympics Data Analysis Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React and ReactDOM CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Babel for JSX -->
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.6/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // Visualization data
+    const visualizations = [
+      {
+        id: 1,
+        title: "Top 10 Countries by Medal Count",
+        src: "top_countries_medal_count.png",
+        description: "Bar chart showing the top 10 countries with the highest total medal counts from 1976 to 2008."
+      },
+      {
+        id: 2,
+        title: "Total Medals Won Over the Years",
+        src: "medal_trends_over_years.png",
+        description: "Line plot showing the trend of total medals won across Olympic years from 1976 to 2008."
+      },
+      {
+        id: 3,
+        title: "Gender Distribution in Olympics Events",
+        src: "gender_distribution.png",
+        description: "Pie chart showing the proportion of male vs. female medalists."
+      },
+      {
+        id: 4,
+        title: "Top 10 Athletes by Medal Count",
+        src: "top_athletes_medal_count.png",
+        description: "Bar chart showing the top 10 athletes with the highest medal counts."
+      },
+      {
+        id: 5,
+        title: "Cities by Number of Events Hosted",
+        src: "city_event_count.png",
+        description: "Bar chart showing the number of events hosted by each city."
+      },
+      {
+        id: 6,
+        title: "Gender Ratio in Medal Wins",
+        src: "gender_ratio_medal_wins.png",
+        description: "Horizontal bar chart showing the count of medals won by gender."
+      },
+      {
+        id: 7,
+        title: "Confusion Matrix for Medal Prediction",
+        src: "confusion_matrix.png",
+        description: "Heatmap showing the confusion matrix for the logistic regression model’s medal predictions."
+      }
+    ];
+
+    // Modal Component
+    function Modal({ isOpen, onClose, imageSrc, title }) {
+      if (!isOpen) return null;
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-lg max-w-3xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">{title}</h2>
+              <button onClick={onClose} className="text-red-500 hover:text-red-700">Close</button>
+            </div>
+            <img src={imageSrc} alt={title} className="w-full h-auto" />
+          </div>
+        </div>
+      );
+    }
+
+    // Visualization Card Component
+    function VisualizationCard({ viz }) {
+      const [isModalOpen, setIsModalOpen] = useState(false);
+
+      return (
+        <>
+          <div
+            className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <h3 className="text-lg font-semibold mb-2">{viz.title}</h3>
+            <img src={viz.src} alt={viz.title} className="w-full h-48 object-contain mb-2" />
+            <p className="text-gray-600">{viz.description}</p>
+          </div>
+          <Modal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            imageSrc={viz.src}
+            title={viz.title}
+          />
+        </>
+      );
+    }
+
+    // Sidebar Component
+    function Sidebar({ visualizations, scrollToViz }) {
+      return (
+        <div className="w-64 bg-gray-800 text-white h-screen fixed top-0 left-0 p-4">
+          <h2 className="text-xl font-bold mb-4">Olympics Dashboard</h2>
+          <ul>
+            {visualizations.map(viz => (
+              <li key={viz.id} className="mb-2">
+                <button
+                  onClick={() => scrollToViz(viz.id)}
+                  className="text-left w-full hover:bg-gray-700 p-2 rounded"
+                >
+                  {viz.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+
+    // Main App Component
+    function App() {
+      const scrollToViz = (id) => {
+        const element = document.getElementById(`viz-${id}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+
+      return (
+        <div className="flex">
+          <Sidebar visualizations={visualizations} scrollToViz={scrollToViz} />
+          <div className="ml-64 p-8 w-full">
+            <h1 className="text-3xl font-bold mb-8 text-center">Olympics Data Analysis Dashboard</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visualizations.map(viz => (
+                <div key={viz.id} id={`viz-${viz.id}`}>
+                  <VisualizationCard viz={viz} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Render the App
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
